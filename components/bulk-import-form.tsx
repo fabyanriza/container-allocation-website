@@ -153,19 +153,56 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
         const text = await uploadedFile.text();
         const lines = text.split(/\r?\n/).filter((line) => line.trim());
 
+        if (lines.length === 0) {
+          setError("File CSV kosong");
+          return;
+        }
+
+        // Parse header row
+        const headerLine = lines[0];
+        const headers = headerLine.split(",").map((h) => normalizeKey(h));
+
+        // Find column indices by header name
+        const colIndex = (name: string) => headers.indexOf(name);
+
+        const containerIdx = colIndex("container_number");
+        const activityIdx = colIndex("activity");
+        const logisticsIdx = colIndex("logistics");
+        const sizeTeuIdx = colIndex("size_teu");
+        const depotIdIdx = colIndex("depot_id");
+
+        if (
+          containerIdx === -1 ||
+          activityIdx === -1 ||
+          logisticsIdx === -1 ||
+          sizeTeuIdx === -1
+        ) {
+          setError(
+            "CSV harus memiliki kolom: container_number, activity, logistics, size_teu",
+          );
+          return;
+        }
+
         const dataLines = lines.slice(1); // skip header
         for (const line of dataLines) {
-          const [container_number, activity, logistics, size_teu, depot_id] =
-            line.split(",").map((v) => v.trim());
+          const values = line.split(",").map((v) => v.trim());
 
-          if (container_number && activity && logistics && size_teu) {
+          const container_number = values[containerIdx];
+          const activity = values[activityIdx];
+          const logistics = values[logisticsIdx];
+          const size_teu = toNumber(values[sizeTeuIdx], 1);
+          const depot_id =
+            depotIdIdx !== -1 && values[depotIdIdx]
+              ? Number.parseInt(values[depotIdIdx], 10)
+              : undefined;
+
+          if (container_number && activity && logistics) {
             data.push({
               container_number,
               activity,
               logistics,
-              size_teu: Number.parseFloat(size_teu) || 1,
-              // optional column depot_id in CSV (kalau ada)
-              depot_id: depot_id ? Number.parseInt(depot_id, 10) : undefined,
+              size_teu,
+              depot_id: Number.isFinite(depot_id) ? depot_id : undefined,
             });
           }
         }
