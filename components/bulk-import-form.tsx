@@ -65,6 +65,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
 
   const [parsing, setParsing] = useState(false);
   const [recommending, setRecommending] = useState(false);
+  const [showAllRows, setShowAllRows] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -395,12 +396,18 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                   >
                     Apply All Recommended
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAllRows(!showAllRows)}
+                  >
+                    {showAllRows ? "Show Less" : "Show All"}
+                  </Button>
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto border rounded-lg" style={{ maxHeight: showAllRows ? "600px" : "auto", overflowY: showAllRows ? "auto" : "visible" }}>
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className="sticky top-0 bg-muted">
                     <tr className="border-b">
                       <th className="text-left p-2">Container Number</th>
                       <th className="text-left p-2">Activity</th>
@@ -411,7 +418,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.slice(0, 25).map((container, idx) => {
+                    {(showAllRows ? preview : preview.slice(0, 25)).map((container, idx) => {
                       const selectedDepotName = container.depot_id
                         ? (depotNameById.get(container.depot_id) ??
                           `Depot #${container.depot_id}`)
@@ -430,7 +437,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                       return (
                         <tr
                           key={`${container.container_number}-${idx}`}
-                          className="border-b"
+                          className="border-b hover:bg-muted/50"
                         >
                           <td className="p-2">{container.container_number}</td>
                           <td className="p-2">{container.activity}</td>
@@ -480,9 +487,9 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                 </table>
               </div>
 
-              {preview.length > 25 && (
+              {!showAllRows && preview.length > 25 && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  Showing first 25 rows. (Tetap akan import semua)
+                  Showing first 25 rows of {preview.length}. Klik "Show All" untuk melihat semua. (Tetap akan import semua)
                 </p>
               )}
 

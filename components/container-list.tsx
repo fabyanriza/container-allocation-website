@@ -6,9 +6,18 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Filter, X, Download, FileSpreadsheet } from "lucide-react"
+import { Search, Filter, X, Download, FileSpreadsheet, Trash2, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { exportToCSV, exportToExcel } from "@/lib/export-utils"
 
 interface Container {
@@ -35,6 +44,12 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
   const [filteredContainers, setFilteredContainers] = useState<Container[]>([])
   const [depots, setDepots] = useState<Depot[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState<number | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; containerId: number | null; containerNumber: string }>({
+    open: false,
+    containerId: null,
+    containerNumber: "",
+  })
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("")
@@ -116,6 +131,27 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
     setSelectedActivity("all")
     setSelectedLogistics("all")
     setSelectedStatus("all")
+  }
+
+  async function handleDeleteContainer(id: number) {
+    setDeleting(id)
+    try {
+      const res = await fetch(`/api/containers?id=${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete container")
+
+      // Remove from local state
+      setContainers((prev) => prev.filter((c) => c.id !== id))
+      setDeleteDialog({ open: false, containerId: null, containerNumber: "" })
+    } catch (err) {
+      console.error("Error deleting container:", err)
+      alert("Failed to delete container")
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  function openDeleteDialog(id: number, containerNumber: string) {
+    setDeleteDialog({ open: true, containerId: id, containerNumber })
   }
 
   function handleExportCSV() {
@@ -266,9 +302,11 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
                     <h3 className="font-bold text-lg">{container.container_number}</h3>
                     <p className="text-sm text-muted-foreground">{container.depots?.name || "Unknown Depot"}</p>
                   </div>
-                  <Badge variant="outline" className="font-mono">
-                    {container.teu_size} TEU
-                  </Badge>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="font-mono">
+                      {container.teu_size} TEU
+                    </Badge>
+                  </div>
                 </div>
 
                 {/* Details */}
@@ -294,11 +332,55 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
                     <span className="text-xs">{new Date(container.created_at).toLocaleDateString("id-ID")}</span>
                   </div>
                 </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-2 border-t">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => openDeleteDialog(container.id, container.container_number)}
+                    disabled={deleting === container.id}
+                  >
+                    {deleting === container.id ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-2" />
+                    )}
+                    Delete
+                  </Button>
+                </div>
               </div>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Container</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete container <strong>{deleteDialog.containerNumber}</strong>? This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-3 justify-end">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                deleteDialog.containerId && handleDeleteContainer(deleteDialog.containerId)
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting !== null}
+            >
+              {deleting !== null ? <Loader2 className="h-4 w-4 mr-2 animate-spin inline" /> : null}
+              Delete
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
