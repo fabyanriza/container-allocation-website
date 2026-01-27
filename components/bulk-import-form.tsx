@@ -156,7 +156,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
 
         if (lines.length === 0) {
           setError("File CSV kosong");
-          return;
+          return; 
         }
 
         // Parse header row
