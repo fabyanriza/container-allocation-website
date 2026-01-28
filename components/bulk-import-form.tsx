@@ -9,14 +9,6 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
 
-// Kalau kamu punya komponen Select shadcn, boleh ganti native <select> jadi Select.
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from "@/components/ui/select";
 
 interface Depot {
   id: number;
