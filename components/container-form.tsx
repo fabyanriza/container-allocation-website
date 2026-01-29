@@ -63,10 +63,10 @@ export default function ContainerForm({ onSubmitSuccess }: { onSubmitSuccess: ()
       if (error) throw error
 
       const depotsWithUsage = await Promise.all(
-        (data || []).map(async (depot) => {
+        (data || []).map(async (depot: Depot) => {
           const { data: containers } = await supabase.from("containers").select("size_teu").eq("depot_id", depot.id)
 
-          const used = containers?.reduce((sum, c) => sum + (Number(c.size_teu) || 0), 0) || 0
+          const used = containers?.reduce((sum: number, c: { size_teu: string | number }) => sum + (Number(c.size_teu) || 0), 0) || 0
           return { ...depot, used_capacity: used }
         }),
       )
