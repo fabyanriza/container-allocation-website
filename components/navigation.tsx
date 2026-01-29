@@ -31,7 +31,8 @@ export default function Navigation() {
     { href: "/", label: "Dashboard" },
     { href: "/allocation", label: "Allocate" },
     { href: "/management", label: "Management" },
-    { href: "/discharge", label: "Discharge" }, // Added Discharge link for vessel discharge tracking
+    { href: "/discharge", label: "Discharge" },
+    { href: "/forecast", label: "Forecast" }, // Empty container forecast
   ]
 
   // Don't show navigation on login page
