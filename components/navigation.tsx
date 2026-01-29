@@ -15,7 +15,7 @@ export default function Navigation() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: { email?: string } | null } }) => {
       setUserEmail(user?.email || null)
     })
   }, [])
