@@ -32,7 +32,7 @@ export default function Navigation() {
     { href: "/allocation", label: "Allocate" },
     { href: "/management", label: "Management" },
     { href: "/discharge", label: "Discharge" },
-    { href: "/forecast", label: "Forecast" }, // Empty container forecast
+    { href: "/forecast", label: "Forecast" },
   ]
 
   // Don't show navigation on login page
@@ -59,15 +59,6 @@ export default function Navigation() {
                 </Link>
               )
             })}
-
-            {/* Users link for management */}
-            {userEmail && (
-              <Link href="/users">
-                <Button variant={pathname === "/users" ? "default" : "ghost"} size="sm">
-                  Users
-                </Button>
-              </Link>
-            )}
 
             {/* User Menu */}
             {userEmail && (
