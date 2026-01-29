@@ -17,7 +17,7 @@ interface ManifestRow {
   consignee_name: string
 }
 
-export function ManifestImportForm() {
+export function ManifestImportForm({ onSuccess }: { onSuccess?: () => void } = {}) {
   const [file, setFile] = useState<File | null>(null)
   const [data, setData] = useState<ManifestRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -120,6 +120,10 @@ export function ManifestImportForm() {
       setData([])
       setFile(null)
       setShowPreview(false)
+      
+      if (onSuccess) {
+        onSuccess()
+      }
 
       setTimeout(() => {
         setSuccess(false)
