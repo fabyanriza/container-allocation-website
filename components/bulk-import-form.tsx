@@ -326,7 +326,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
   return (
     <div className="space-y-6">
       <Card className="p-6">
-        <h2 className="text-2xl font-bold mb-4">Bulk Import Containers</h2>
+        <h2 className="text-2xl font-bold mb-4">Alokasi Bongkaran</h2>
 
         {error && (
           <Alert variant="destructive" className="mb-4">

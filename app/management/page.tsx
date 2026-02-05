@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import DepotManagementList from "@/components/depot-management-list";
 import ContainerForm from "@/components/container-form";
@@ -9,10 +10,20 @@ import AllocationRecommendationInfo from "@/components/allocation-recommendation
 import BulkImportForm from "@/components/bulk-import-form";
 
 export default function ManagementPage() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  
   const [activeTab, setActiveTab] = useState<
     "depots" | "containers" | "list" | "bulk"
   >("depots");
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Set initial tab from URL parameter
+  useEffect(() => {
+    if (tabParam === "bulk" || tabParam === "depots" || tabParam === "containers" || tabParam === "list") {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
@@ -50,7 +61,7 @@ export default function ManagementPage() {
             onClick={() => setActiveTab("bulk")}
             className="px-6"
           >
-            Bulk Import
+            Alokasi Bongkaran
           </Button>
           <Button
             variant={activeTab === "list" ? "default" : "outline"}
