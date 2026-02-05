@@ -4,11 +4,30 @@ import { randomInt } from "crypto";
 
 export const runtime = "nodejs";
 
+// Allocation configuration - dapat dikustomisasi
+const ALLOCATION_CONFIG = {
+  // Capacity target range (60-80% untuk optimal efficiency & flexibility)
+  capacity: {
+    target_min: 0.6, // 60% - prefer allocate when utilization > 60%
+    target_max: 0.8, // 80% - prefer NOT allocate when > 80%
+    warning: 0.85, // 85% - warning level
+    critical: 0.95, // 95% - critical, avoid new allocation
+  },
+  // Grade-based depot preferences
+  gradePreference: {
+    "Depo 4": ["A", "B"],
+    "Depo Japfa": ["B", "C", "A"],
+    "Depo Teluk Bayur": ["C", "B"],
+    "Depo Yon": ["B", "C"],
+  },
+} as const;
+
 type IncomingContainer = {
   container_number: string;
   activity: string;
   logistics: string; // "yes"/"no" (atau variasi)
   size_teu: number;
+  grade?: string; // "A" | "B" | "C" (optional, from database)
   depot_id?: number;
 };
 
@@ -72,6 +91,38 @@ function isOver90(capacity: number, available: number, addTeu: number) {
   return usageAfterAddPercent(capacity, available, addTeu) >= 90;
 }
 
+function isInOptimalRange(capacity: number, available: number, addTeu: number) {
+  const usageAfter = usageAfterAddPercent(capacity, available, addTeu);
+  return (
+    usageAfter >= ALLOCATION_CONFIG.capacity.target_min * 100 &&
+    usageAfter <= ALLOCATION_CONFIG.capacity.target_max * 100
+  );
+}
+
+function isExceedingMax(capacity: number, available: number, addTeu: number) {
+  const usageAfter = usageAfterAddPercent(capacity, available, addTeu);
+  return usageAfter > ALLOCATION_CONFIG.capacity.target_max * 100;
+}
+
+function isOverCritical(capacity: number, available: number, addTeu: number) {
+  const usageAfter = usageAfterAddPercent(capacity, available, addTeu);
+  return usageAfter >= ALLOCATION_CONFIG.capacity.critical * 100;
+}
+
+function isGradeCompatible(
+  depotName: string,
+  containerGrade?: string,
+): boolean {
+  if (!containerGrade) return true; // jika tidak ada grade, accept semua depot
+
+  const depot = Object.entries(ALLOCATION_CONFIG.gradePreference).find(
+    ([name]) => depotName.toLowerCase().includes(name.toLowerCase()),
+  );
+
+  if (!depot) return true;
+  return depot[1].includes(containerGrade.toUpperCase());
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -133,59 +184,100 @@ export async function POST(req: Request) {
       available.set(d.id, Number(d.capacity_teu ?? 0) - used);
     }
 
-    // helper: pick preferred chain with rules + capacity + <90%
+    // helper: pick preferred chain with rules + capacity + optimal range (60-80%)
     function pickFromPreferredChain(
       preferredIds: number[],
       size: number,
+      containerGrade?: string,
     ): { id: number | null; reason: string } {
-      // 1) try preferred that fits and NOT over 90 after add
+      // 1) try preferred that fits, is grade-compatible, AND in optimal range (60-80%)
       for (const id of preferredIds) {
+        const depot = depots.find((d) => d.id === id);
+        if (!depot) continue;
+
         const cap = capacity.get(id) ?? 0;
         const av = available.get(id) ?? 0;
-        if (av >= size && !isOver90(cap, av, size)) {
+
+        if (
+          av >= size &&
+          !isOverCritical(cap, av, size) &&
+          isInOptimalRange(cap, av, size) &&
+          isGradeCompatible(depot.name, containerGrade)
+        ) {
           return {
             id,
-            reason: "Preferred depot fits and remains <90% after allocation",
+            reason: `Preferred depot with grade "${containerGrade || "any"}" fits in optimal range (60-80%)`,
           };
         }
       }
 
-      // 2) if all preferred are >=90, pick random among other depots (<90 and fits)
+      // 2) if preferred in optimal range not available, try preferred < max but not critical
+      for (const id of preferredIds) {
+        const depot = depots.find((d) => d.id === id);
+        if (!depot) continue;
+
+        const cap = capacity.get(id) ?? 0;
+        const av = available.get(id) ?? 0;
+
+        if (
+          av >= size &&
+          !isOverCritical(cap, av, size) &&
+          !isExceedingMax(cap, av, size) &&
+          isGradeCompatible(depot.name, containerGrade)
+        ) {
+          return {
+            id,
+            reason: `Preferred depot with grade "${containerGrade || "any"}" below max capacity`,
+          };
+        }
+      }
+
+      // 3) if all preferred are overmax, find other depots in optimal range
       const candidates = depots
         .map((d) => {
           const cap = capacity.get(d.id) ?? 0;
           const av = available.get(d.id) ?? 0;
-          return { id: d.id, cap, av };
+          return { id: d.id, cap, av, name: d.name };
         })
-        .filter((x) => x.av >= size && !isOver90(x.cap, x.av, size));
+        .filter(
+          (x) =>
+            x.av >= size &&
+            !isOverCritical(x.cap, x.av, size) &&
+            isInOptimalRange(x.cap, x.av, size) &&
+            isGradeCompatible(x.name, containerGrade),
+        );
 
       if (candidates.length > 0) {
         const chosen = candidates[randomInt(0, candidates.length)];
         return {
           id: chosen.id,
-          reason:
-            "Rule 4: preferred depots >=90%, random to another depot (<90%)",
+          reason: `Alternative depot in optimal range (60-80%) with grade compatibility`,
         };
       }
 
-      // 3) fallback: any depot that fits (even if >=90), choose max availability
+      // 4) fallback: any depot that fits and is not critical
       const fallback = depots
-        .map((d) => ({ id: d.id, av: available.get(d.id) ?? 0 }))
-        .filter((x) => x.av >= size)
+        .map((d) => ({ id: d.id, av: available.get(d.id) ?? 0, name: d.name }))
+        .filter(
+          (x) =>
+            x.av >= size &&
+            !isOverCritical(capacity.get(x.id) ?? 0, x.av, size) &&
+            isGradeCompatible(x.name, containerGrade),
+        )
         .sort((a, b) => b.av - a.av)[0];
 
       if (fallback) {
         return {
           id: fallback.id,
-          reason:
-            "Fallback: no depot <90% fits; chose depot with highest available",
+          reason: `Fallback: depot below critical capacity with grade compatibility`,
         };
       }
 
-      // 4) none fits
+      // 5) none fits with optimal criteria
       return {
         id: null,
-        reason: "No depots have enough capacity for this container",
+        reason:
+          "No suitable depot: all exceed critical capacity or grade incompatible",
       };
     }
 
@@ -240,7 +332,7 @@ export async function POST(req: Request) {
           .map((x) => x.id);
       }
 
-      const picked = pickFromPreferredChain(preferred, size);
+      const picked = pickFromPreferredChain(preferred, size, c.grade);
 
       // reserve capacity in-memory
       if (picked.id != null) {
