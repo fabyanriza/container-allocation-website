@@ -248,10 +248,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
             const logistics = String(
               normalized["logistic"] ?? normalized["logistics"] ?? "",
             ).trim();
-            const size_teu = toNumber(
-              normalized["size_teu"] ?? normalized["cont_type"],
-              1,
-            );
+            const size_teu = toNumber(normalized["size_teu"], 1);
             const prevcy =
               String(normalized["prevcy"] ?? "").trim() || undefined;
             const bookno =
@@ -491,7 +488,9 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                             <td className="p-2">{container.activity}</td>
                             <td className="p-2">{container.logistics}</td>
                             <td className="p-2 text-right">
-                              {container.size_teu}
+                              {Number.isFinite(container.size_teu)
+                                ? container.size_teu
+                                : 1}
                             </td>
 
                             {/* Editable depot */}
