@@ -9,7 +9,6 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
 
-
 interface Depot {
   id: number;
   name: string;
@@ -22,6 +21,10 @@ interface ContainerData {
   activity: string;
   logistics: string;
   size_teu: number;
+  prevcy?: string; // Voyage/previous code
+  bookno?: string; // Booking number
+  cont_type?: string; // Container type (20 DC, 40 DC, etc)
+  grade?: string; // Container grade (A, B, C)
 
   // user editable
   depot_id?: number;
@@ -148,21 +151,31 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
 
         if (lines.length === 0) {
           setError("File CSV kosong");
-          return; 
+          return;
         }
 
         // Parse header row
         const headerLine = lines[0];
         const headers = headerLine.split(",").map((h) => normalizeKey(h));
 
-        // Find column indices by header name
-        const colIndex = (name: string) => headers.indexOf(name);
+        // Find column indices by header name (support multiple naming variations)
+        const colIndex = (names: string[]) => {
+          for (const name of names) {
+            const idx = headers.indexOf(name);
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        };
 
-        const containerIdx = colIndex("container_number");
-        const activityIdx = colIndex("activity");
-        const logisticsIdx = colIndex("logistics");
-        const sizeTeuIdx = colIndex("size_teu");
-        const depotIdIdx = colIndex("depot_id");
+        const containerIdx = colIndex(["container_number", "no_container"]);
+        const activityIdx = colIndex(["activity"]);
+        const logisticsIdx = colIndex(["logistics", "logistic"]);
+        const sizeTeuIdx = colIndex(["size_teu"]);
+        const prevcyIdx = colIndex(["prevcy"]);
+        const booknoIdx = colIndex(["bookno"]);
+        const contTypeIdx = colIndex(["cont_type", "container_type"]);
+        const gradeIdx = colIndex(["containergrade", "grade"]);
+        const depotIdIdx = colIndex(["depot_id"]);
 
         if (
           containerIdx === -1 ||
@@ -184,6 +197,11 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
           const activity = values[activityIdx];
           const logistics = values[logisticsIdx];
           const size_teu = toNumber(values[sizeTeuIdx], 1);
+          const prevcy = prevcyIdx !== -1 ? values[prevcyIdx] : undefined;
+          const bookno = booknoIdx !== -1 ? values[booknoIdx] : undefined;
+          const cont_type =
+            contTypeIdx !== -1 ? values[contTypeIdx] : undefined;
+          const grade = gradeIdx !== -1 ? values[gradeIdx] : undefined;
           const depot_id =
             depotIdIdx !== -1 && values[depotIdIdx]
               ? Number.parseInt(values[depotIdIdx], 10)
@@ -195,6 +213,10 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               activity,
               logistics,
               size_teu,
+              prevcy: prevcy || undefined,
+              bookno: bookno || undefined,
+              cont_type: cont_type || undefined,
+              grade: grade || undefined,
               depot_id: Number.isFinite(depot_id) ? depot_id : undefined,
             });
           }
@@ -218,11 +240,28 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               normalized[normalizeKey(k)] = v;
 
             const container_number = String(
-              normalized["container_number"] ?? "",
+              normalized["no_container"] ??
+                normalized["container_number"] ??
+                "",
             ).trim();
             const activity = String(normalized["activity"] ?? "").trim();
-            const logistics = String(normalized["logistics"] ?? "").trim();
-            const size_teu = toNumber(normalized["size_teu"], 1);
+            const logistics = String(
+              normalized["logistic"] ?? normalized["logistics"] ?? "",
+            ).trim();
+            const size_teu = toNumber(
+              normalized["size_teu"] ?? normalized["cont_type"],
+              1,
+            );
+            const prevcy =
+              String(normalized["prevcy"] ?? "").trim() || undefined;
+            const bookno =
+              String(normalized["bookno"] ?? "").trim() || undefined;
+            const cont_type =
+              String(normalized["cont_type"] ?? "").trim() || undefined;
+            const grade =
+              String(
+                normalized["containergrade"] ?? normalized["grade"] ?? "",
+              ).trim() || undefined;
 
             // optional depot_id column
             const depot_id_raw = normalized["depot_id"];
@@ -240,6 +279,10 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               activity,
               logistics,
               size_teu,
+              prevcy,
+              bookno,
+              cont_type,
+              grade,
               depot_id,
             };
           })
@@ -355,8 +398,11 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               disabled={parsing || loading}
             />
             <p className="text-xs text-muted-foreground mt-2">
-              Expected columns (header): container_number, activity, logistics,
-              size_teu (optional: depot_id)
+              Required columns: container_number/no_container, activity,
+              logistics/logistic, size_teu
+              <br />
+              Optional columns: prevcy, bookno, cont_type, containergrade/grade,
+              depot_id
             </p>
           </div>
 
@@ -397,7 +443,13 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                 </div>
               </div>
 
-              <div className="overflow-x-auto border rounded-lg" style={{ maxHeight: showAllRows ? "600px" : "auto", overflowY: showAllRows ? "auto" : "visible" }}>
+              <div
+                className="overflow-x-auto border rounded-lg"
+                style={{
+                  maxHeight: showAllRows ? "600px" : "auto",
+                  overflowY: showAllRows ? "auto" : "visible",
+                }}
+              >
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-muted">
                     <tr className="border-b">
@@ -410,78 +462,86 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(showAllRows ? preview : preview.slice(0, 25)).map((container, idx) => {
-                      const selectedDepotName = container.depot_id
-                        ? (depotNameById.get(container.depot_id) ??
-                          `Depot #${container.depot_id}`)
-                        : "—";
+                    {(showAllRows ? preview : preview.slice(0, 25)).map(
+                      (container, idx) => {
+                        const selectedDepotName = container.depot_id
+                          ? (depotNameById.get(container.depot_id) ??
+                            `Depot #${container.depot_id}`)
+                          : "—";
 
-                      const recommendedName = container.recommended_depot_id
-                        ? (depotNameById.get(container.recommended_depot_id) ??
-                          `Depot #${container.recommended_depot_id}`)
-                        : "—";
+                        const recommendedName = container.recommended_depot_id
+                          ? (depotNameById.get(
+                              container.recommended_depot_id,
+                            ) ?? `Depot #${container.recommended_depot_id}`)
+                          : "—";
 
-                      const isOverride =
-                        container.depot_id &&
-                        container.recommended_depot_id &&
-                        container.depot_id !== container.recommended_depot_id;
+                        const isOverride =
+                          container.depot_id &&
+                          container.recommended_depot_id &&
+                          container.depot_id !== container.recommended_depot_id;
 
-                      return (
-                        <tr
-                          key={`${container.container_number}-${idx}`}
-                          className="border-b hover:bg-muted/50"
-                        >
-                          <td className="p-2">{container.container_number}</td>
-                          <td className="p-2">{container.activity}</td>
-                          <td className="p-2">{container.logistics}</td>
-                          <td className="p-2 text-right">
-                            {container.size_teu}
-                          </td>
+                        return (
+                          <tr
+                            key={`${container.container_number}-${idx}`}
+                            className="border-b hover:bg-muted/50"
+                          >
+                            <td className="p-2">
+                              {container.container_number}
+                            </td>
+                            <td className="p-2">{container.activity}</td>
+                            <td className="p-2">{container.logistics}</td>
+                            <td className="p-2 text-right">
+                              {container.size_teu}
+                            </td>
 
-                          {/* Editable depot */}
-                          <td className="p-2">
-                            <select
-                              className="border rounded-md px-2 py-1 w-56"
-                              value={container.depot_id ?? ""}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                updateDepot(idx, v ? Number(v) : undefined);
-                              }}
-                              disabled={loading}
-                            >
-                              <option value="">— Select depot —</option>
-                              {depots.map((d) => (
-                                <option key={d.id} value={d.id}>
-                                  {d.name}
-                                </option>
-                              ))}
-                            </select>
+                            {/* Editable depot */}
+                            <td className="p-2">
+                              <select
+                                className="border rounded-md px-2 py-1 w-56"
+                                value={container.depot_id ?? ""}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  updateDepot(idx, v ? Number(v) : undefined);
+                                }}
+                                disabled={loading}
+                              >
+                                <option value="">— Select depot —</option>
+                                {depots.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    {d.name}
+                                  </option>
+                                ))}
+                              </select>
 
-                            <div className="text-xs text-muted-foreground mt-1">
-                              Selected: {selectedDepotName}
-                              {isOverride ? " (override)" : ""}
-                            </div>
-                          </td>
-
-                          {/* Recommendation */}
-                          <td className="p-2">
-                            <div className="font-medium">{recommendedName}</div>
-                            {container.recommendation_reason && (
-                              <div className="text-xs text-muted-foreground">
-                                {container.recommendation_reason}
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Selected: {selectedDepotName}
+                                {isOverride ? " (override)" : ""}
                               </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            </td>
+
+                            {/* Recommendation */}
+                            <td className="p-2">
+                              <div className="font-medium">
+                                {recommendedName}
+                              </div>
+                              {container.recommendation_reason && (
+                                <div className="text-xs text-muted-foreground">
+                                  {container.recommendation_reason}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      },
+                    )}
                   </tbody>
                 </table>
               </div>
 
               {!showAllRows && preview.length > 25 && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  Showing first 25 rows of {preview.length}. Klik "Show All" untuk melihat semua. (Tetap akan import semua)
+                  Showing first 25 rows of {preview.length}. Klik "Show All"
+                  untuk melihat semua. (Tetap akan import semua)
                 </p>
               )}
 
