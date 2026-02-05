@@ -16,9 +16,12 @@ export default function ManagementPage() {
   >("depots");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const handleTabChange = useCallback((tab: "depots" | "containers" | "list" | "bulk") => {
-    setActiveTab(tab);
-  }, []);
+  const handleTabChange = useCallback(
+    (tab: "depots" | "containers" | "list" | "bulk") => {
+      setActiveTab(tab);
+    },
+    [],
+  );
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
