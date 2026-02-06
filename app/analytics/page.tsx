@@ -1,9 +1,15 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
-import { Card } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Bar,
   BarChart,
@@ -15,54 +21,59 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from "recharts"
-import ExportButton from "@/components/export-button"
-import { TrendingUp, Calendar, Package, Activity } from "lucide-react"
+} from "recharts";
+import ExportButton from "@/components/export-button";
+import { TrendingUp, Calendar, Package, Activity } from "lucide-react";
 
 interface MonthlyData {
-  month: string
-  [key: string]: number | string
+  month: string;
+  [key: string]: number | string;
 }
 
 interface DepotStats {
-  depot_name: string
-  total_containers: number
-  total_teu: number
-  avg_utilization: number
+  depot_name: string;
+  total_containers: number;
+  total_teu: number;
+  avg_utilization: number;
 }
 
 export default function AnalyticsPage() {
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
-  const [depotStats, setDepotStats] = useState<DepotStats[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
-  const [depots, setDepots] = useState<any[]>([])
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [depotStats, setDepotStats] = useState<DepotStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<string>(
+    new Date().getFullYear().toString(),
+  );
+  const [depots, setDepots] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchAnalyticsData()
-  }, [selectedYear])
+    fetchAnalyticsData();
+  }, [selectedYear]);
 
   async function fetchAnalyticsData() {
     try {
-      setLoading(true)
-      const supabase = createClient()
+      setLoading(true);
+      const supabase = createClient();
 
       // Fetch depots
-      const { data: depotsData, error: depotsError } = await supabase.from("depots").select("*").order("name")
+      const { data: depotsData, error: depotsError } = await supabase
+        .from("depots")
+        .select("*")
+        .order("name");
 
-      if (depotsError) throw depotsError
-      setDepots(depotsData || [])
+      if (depotsError) throw depotsError;
+      setDepots(depotsData || []);
 
       // Fetch all containers with dates
       const { data: containersData, error: containersError } = await supabase
         .from("containers")
         .select("*, depots(name, capacity_teu)")
-        .order("created_at")
+        .order("created_at");
 
-      if (containersError) throw containersError
+      if (containersError) throw containersError;
 
       // Process monthly data
-      const monthlyMap: { [key: string]: { [depotName: string]: number } } = {}
+      const monthlyMap: { [key: string]: { [depotName: string]: number } } = {};
       const months = [
         "January",
         "February",
@@ -76,90 +87,105 @@ export default function AnalyticsPage() {
         "October",
         "November",
         "December",
-      ]
+      ];
 
       // Initialize all months for selected year
       months.forEach((month, index) => {
-        const key = `${selectedYear}-${String(index + 1).padStart(2, "0")}`
-        monthlyMap[key] = { month: `${month.slice(0, 3)} ${selectedYear}` }
+        const key = `${selectedYear}-${String(index + 1).padStart(2, "0")}`;
+        monthlyMap[key] = { month: `${month.slice(0, 3)} ${selectedYear}` };
         depotsData?.forEach((depot) => {
-          monthlyMap[key][depot.name] = 0
-        })
-      })
+          monthlyMap[key][depot.name] = 0;
+        });
+      });
 
       // Aggregate containers by month and depot
       containersData?.forEach((container) => {
-        const date = new Date(container.created_at)
-        const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+        const date = new Date(container.created_at);
+        const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
-        if (date.getFullYear().toString() === selectedYear && monthlyMap[yearMonth]) {
-          const depotName = container.depots?.name || "Unknown"
+        if (
+          date.getFullYear().toString() === selectedYear &&
+          monthlyMap[yearMonth]
+        ) {
+          const depotName = container.depots?.name || "Unknown";
           if (monthlyMap[yearMonth][depotName] !== undefined) {
-            monthlyMap[yearMonth][depotName] += container.teu_size
+            monthlyMap[yearMonth][depotName] += container.teu_size;
           }
         }
-      })
+      });
 
       // Convert to array for chart
-      const monthlyArray = Object.values(monthlyMap)
-      setMonthlyData(monthlyArray)
+      const monthlyArray = Object.values(monthlyMap);
+      setMonthlyData(monthlyArray);
 
       // Calculate depot statistics
-      const statsMap: { [depotName: string]: { total_containers: number; total_teu: number; capacity: number } } = {}
+      const statsMap: {
+        [depotName: string]: {
+          total_containers: number;
+          total_teu: number;
+          capacity: number;
+        };
+      } = {};
 
       depotsData?.forEach((depot) => {
         statsMap[depot.name] = {
           total_containers: 0,
           total_teu: 0,
           capacity: depot.capacity_teu,
-        }
-      })
+        };
+      });
 
       containersData?.forEach((container) => {
-        const depotName = container.depots?.name || "Unknown"
+        const depotName = container.depots?.name || "Unknown";
         if (statsMap[depotName]) {
-          statsMap[depotName].total_containers++
-          statsMap[depotName].total_teu += container.teu_size
+          statsMap[depotName].total_containers++;
+          statsMap[depotName].total_teu += container.teu_size;
         }
-      })
+      });
 
-      const statsArray = Object.entries(statsMap).map(([depot_name, stats]) => ({
-        depot_name,
-        total_containers: stats.total_containers,
-        total_teu: stats.total_teu,
-        avg_utilization: (stats.total_teu / stats.capacity) * 100,
-      }))
+      const statsArray = Object.entries(statsMap).map(([depot_name, stats]) => {
+        const utilization =
+          stats.capacity > 0 ? (stats.total_teu / stats.capacity) * 100 : 0;
+        return {
+          depot_name,
+          total_containers: stats.total_containers,
+          total_teu: stats.total_teu,
+          avg_utilization: isNaN(utilization) ? 0 : utilization,
+        };
+      });
 
-      setDepotStats(statsArray)
+      setDepotStats(statsArray);
     } catch (err) {
-      console.error("Error fetching analytics:", err)
+      console.error("Error fetching analytics:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
-  const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"]
+  const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
 
-  const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
   // Prepare export data
   const exportData = monthlyData.map((item) => {
-    const row: any = { Month: item.month }
+    const row: any = { Month: item.month };
     depots.forEach((depot) => {
-      row[`${depot.name} (TEU)`] = item[depot.name] || 0
-    })
-    return row
-  })
+      row[`${depot.name} (TEU)`] = item[depot.name] || 0;
+    });
+    return row;
+  });
 
   if (loading) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center py-8 text-muted-foreground">Loading analytics...</div>
+          <div className="text-center py-8 text-muted-foreground">
+            Loading analytics...
+          </div>
         </div>
       </main>
-    )
+    );
   }
 
   return (
@@ -168,10 +194,17 @@ export default function AnalyticsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-foreground mb-2">Analytics Dashboard</h1>
-            <p className="text-muted-foreground">Monitor depot usage trends and performance metrics</p>
+            <h1 className="text-4xl font-bold text-foreground mb-2">
+              Analytics Dashboard
+            </h1>
+            <p className="text-muted-foreground">
+              Monitor depot usage trends and performance metrics
+            </p>
           </div>
-          <ExportButton data={exportData} filename={`depot-analytics-${selectedYear}`} />
+          <ExportButton
+            data={exportData}
+            filename={`depot-analytics-${selectedYear}`}
+          />
         </div>
 
         {/* Year Selector */}
@@ -236,7 +269,11 @@ export default function AnalyticsPage() {
               <Tooltip />
               <Legend />
               <Bar dataKey="total_teu" fill="#3b82f6" name="Total TEU" />
-              <Bar dataKey="avg_utilization" fill="#10b981" name="Utilization %" />
+              <Bar
+                dataKey="avg_utilization"
+                fill="#10b981"
+                name="Utilization %"
+              />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -246,23 +283,36 @@ export default function AnalyticsPage() {
           {depotStats.map((stat, index) => (
             <Card key={stat.depot_name} className="p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className={`p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30`}>
+                <div
+                  className={`p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30`}
+                >
                   <Package className="h-6 w-6 text-blue-600" />
                 </div>
-                <h3 className="font-semibold text-foreground">{stat.depot_name}</h3>
+                <h3 className="font-semibold text-foreground">
+                  {stat.depot_name}
+                </h3>
               </div>
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs text-muted-foreground">Total Containers</p>
+                  <p className="text-xs text-muted-foreground">
+                    Total Containers
+                  </p>
                   <p className="text-2xl font-bold">{stat.total_containers}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Total TEU</p>
-                  <p className="text-xl font-semibold text-blue-600">{stat.total_teu.toFixed(1)}</p>
+                  <p className="text-xl font-semibold text-blue-600">
+                    {stat.total_teu.toFixed(1)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Utilization</p>
-                  <p className="text-xl font-semibold text-green-600">{stat.avg_utilization.toFixed(1)}%</p>
+                  <p className="text-xl font-semibold text-green-600">
+                    {isNaN(stat.avg_utilization)
+                      ? "0.0"
+                      : stat.avg_utilization.toFixed(1)}
+                    %
+                  </p>
                 </div>
               </div>
             </Card>
@@ -270,5 +320,5 @@ export default function AnalyticsPage() {
         </div>
       </div>
     </main>
-  )
+  );
 }
