@@ -41,7 +41,6 @@ export default function Navigation() {
     { href: "/allocation", label: "Allocate" },
     { href: "/management", label: "Management" },
     { href: "/forecast", label: "Forecast" },
-    { href: "/analytics", label: "Analytics" },
   ];
 
   // Don't show navigation on login page
