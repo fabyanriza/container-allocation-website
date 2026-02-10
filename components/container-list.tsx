@@ -47,6 +47,7 @@ interface Container {
   logistics: boolean;
   depot_id: number;
   status: string;
+  discharge_status?: string;
   grade?: string;
   created_at: string;
   depots?: {
@@ -57,6 +58,21 @@ interface Container {
 interface Depot {
   id: number;
   name: string;
+}
+
+function getContainerGradeFromState(state?: string): "full" | "empty" | undefined {
+  if (!state) return undefined;
+  const normalized = state.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.startsWith("f")) return "full";
+  if (normalized.startsWith("m")) return "empty";
+  return undefined;
+}
+
+function getContainerGrade(container: Container): string {
+  const derived = getContainerGradeFromState(container.discharge_status);
+  if (derived) return derived;
+  return container.grade || "B";
 }
 
 export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
@@ -164,7 +180,7 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
 
     // Filter by grade
     if (selectedGrade !== "all") {
-      filtered = filtered.filter((c) => c.grade === selectedGrade);
+      filtered = filtered.filter((c) => getContainerGrade(c) === selectedGrade);
     }
 
     setFilteredContainers(filtered);
@@ -208,6 +224,7 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
       activity: c.activity,
       logistics: c.logistics ? "Yes" : "No",
       status: c.status,
+      container_grade: getContainerGrade(c),
       created_at: new Date(c.created_at).toLocaleString("id-ID"),
     }));
     exportToCSV(
@@ -224,6 +241,7 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
       activity: c.activity,
       logistics: c.logistics ? "Yes" : "No",
       status: c.status,
+      container_grade: getContainerGrade(c),
       created_at: new Date(c.created_at).toLocaleString("id-ID"),
     }));
     exportToExcel(
@@ -344,6 +362,8 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Grades</SelectItem>
+              <SelectItem value="full">Full</SelectItem>
+              <SelectItem value="empty">Empty</SelectItem>
               <SelectItem value="A">Grade A (Premium)</SelectItem>
               <SelectItem value="B">Grade B (Standard)</SelectItem>
               <SelectItem value="C">Grade C (Regular)</SelectItem>
@@ -439,17 +459,29 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Grade:</span>
-                    <Badge
-                      variant={
-                        container.grade === "A"
-                          ? "default"
-                          : container.grade === "B"
-                            ? "outline"
-                            : "secondary"
-                      }
-                    >
-                      Grade {container.grade || "B"}
-                    </Badge>
+                    {(() => {
+                      const currentGrade = getContainerGrade(container);
+                      return (
+                        <Badge
+                          variant={
+                            currentGrade === "full"
+                              ? "default"
+                              : currentGrade === "empty"
+                                ? "secondary"
+                                : currentGrade === "A"
+                                  ? "default"
+                                  : currentGrade === "B"
+                                    ? "outline"
+                                    : "secondary"
+                          }
+                          className="capitalize"
+                        >
+                          {currentGrade === "A" || currentGrade === "B" || currentGrade === "C"
+                            ? `Grade ${currentGrade}`
+                            : currentGrade}
+                        </Badge>
+                      );
+                    })()}
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Added:</span>

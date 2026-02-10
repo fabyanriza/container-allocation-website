@@ -6,6 +6,14 @@ interface ContainerInput {
   activity: string
   logistics: string
   size_teu: number
+  state?: string
+  discharge_status?: string
+}
+
+function normalizeDischargeState(raw?: string): string | undefined {
+  if (!raw) return undefined
+  const normalized = raw.trim().toUpperCase()
+  return normalized || undefined
 }
 
 export async function POST(request: NextRequest) {
@@ -23,7 +31,8 @@ export async function POST(request: NextRequest) {
     let updated = 0
 
     for (const container of containers) {
-      const { container_number, activity, logistics, size_teu } = container as ContainerInput
+      const { container_number, activity, logistics, size_teu, state, discharge_status } = container as ContainerInput
+      const normalizedDischargeStatus = normalizeDischargeState(state ?? discharge_status)
 
       let depot_id = 1 // Default to Depo Yon
 
@@ -51,6 +60,7 @@ export async function POST(request: NextRequest) {
             depot_id,
             size_teu,
             status: "available",
+            ...(normalizedDischargeStatus ? { discharge_status: normalizedDischargeStatus } : {}),
             updated_at: new Date().toISOString(),
           })
           .eq("container_number", container_number)
@@ -66,6 +76,7 @@ export async function POST(request: NextRequest) {
           depot_id,
           size_teu,
           status: "available",
+          ...(normalizedDischargeStatus ? { discharge_status: normalizedDischargeStatus } : {}),
         })
 
         if (!insertError) {

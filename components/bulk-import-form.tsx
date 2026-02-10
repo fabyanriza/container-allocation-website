@@ -21,6 +21,8 @@ interface ContainerData {
   activity: string;
   logistics: string;
   size_teu: number;
+  state?: string;
+  container_grade?: "full" | "empty";
   prevcy?: string; // Voyage/previous code
   bookno?: string; // Booking number
   cont_type?: string; // Container type (20 DC, 40 DC, etc)
@@ -50,6 +52,15 @@ function toNumber(v: unknown, fallback = 1) {
         ? Number.parseFloat(v.replace(",", "."))
         : NaN;
   return Number.isFinite(n) ? n : fallback;
+}
+
+function getContainerGradeFromState(state?: string): "full" | "empty" | undefined {
+  if (!state) return undefined;
+  const normalized = state.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.startsWith("f")) return "full";
+  if (normalized.startsWith("m")) return "empty";
+  return undefined;
 }
 
 export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
@@ -175,6 +186,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
         const booknoIdx = colIndex(["bookno"]);
         const contTypeIdx = colIndex(["cont_type", "container_type"]);
         const gradeIdx = colIndex(["containergrade", "grade"]);
+        const stateIdx = colIndex(["state", "discharge_status"]);
         const depotIdIdx = colIndex(["depot_id"]);
 
         if (
@@ -202,6 +214,8 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
           const cont_type =
             contTypeIdx !== -1 ? values[contTypeIdx] : undefined;
           const grade = gradeIdx !== -1 ? values[gradeIdx] : undefined;
+          const state = stateIdx !== -1 ? values[stateIdx] : undefined;
+          const container_grade = getContainerGradeFromState(state);
           const depot_id =
             depotIdIdx !== -1 && values[depotIdIdx]
               ? Number.parseInt(values[depotIdIdx], 10)
@@ -216,6 +230,8 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               prevcy: prevcy || undefined,
               bookno: bookno || undefined,
               cont_type: cont_type || undefined,
+              state: state || undefined,
+              container_grade,
               grade: grade || undefined,
               depot_id: Number.isFinite(depot_id) ? depot_id : undefined,
             });
@@ -259,6 +275,11 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               String(
                 normalized["containergrade"] ?? normalized["grade"] ?? "",
               ).trim() || undefined;
+            const state =
+              String(
+                normalized["state"] ?? normalized["discharge_status"] ?? "",
+              ).trim() || undefined;
+            const container_grade = getContainerGradeFromState(state);
 
             // optional depot_id column
             const depot_id_raw = normalized["depot_id"];
@@ -279,6 +300,8 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               prevcy,
               bookno,
               cont_type,
+              state,
+              container_grade,
               grade,
               depot_id,
             };
@@ -399,7 +422,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               logistics/logistic, size_teu
               <br />
               Optional columns: prevcy, bookno, cont_type, containergrade/grade,
-              depot_id
+              state/discharge_status, depot_id
             </p>
           </div>
 
@@ -453,6 +476,8 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                       <th className="text-left p-2">Container Number</th>
                       <th className="text-left p-2">Activity</th>
                       <th className="text-left p-2">Logistics</th>
+                      <th className="text-left p-2">State</th>
+                      <th className="text-left p-2">Container Grade</th>
                       <th className="text-right p-2">TEU</th>
                       <th className="text-left p-2">Depot (editable)</th>
                       <th className="text-left p-2">Recommendation</th>
@@ -487,6 +512,10 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                             </td>
                             <td className="p-2">{container.activity}</td>
                             <td className="p-2">{container.logistics}</td>
+                            <td className="p-2">{container.state || "-"}</td>
+                            <td className="p-2 capitalize">
+                              {container.container_grade || "-"}
+                            </td>
                             <td className="p-2 text-right">
                               {Number.isFinite(container.size_teu)
                                 ? container.size_teu
