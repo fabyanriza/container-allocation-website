@@ -126,11 +126,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Enhanced Dashboard */}
-        <div className="mb-8">
-          <EnhancedDashboard />
-        </div>
-
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
@@ -140,11 +135,16 @@ export default function Home() {
         ) : (
           <>
             <div className="mb-6">
-              <RebalancingAlerts />
+              <CapacityAlerts depots={depots} />
             </div>
 
             <div className="mb-6">
-              <CapacityAlerts depots={depots} />
+              <RebalancingAlerts />
+            </div>
+
+            {/* Enhanced Dashboard */}
+            <div className="mb-8">
+              <EnhancedDashboard />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
