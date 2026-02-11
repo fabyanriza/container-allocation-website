@@ -42,7 +42,8 @@ import { exportToCSV, exportToExcel } from "@/lib/export-utils";
 interface Container {
   id: number;
   container_number: string;
-  teu_size: number;
+  teu_size?: number | null;
+  size_teu?: number | null;
   activity?: string | null;
   logistics: boolean | string;
   depot_id: number;
@@ -90,6 +91,11 @@ function getDisplayActivity(container: Container): string {
 function isLogisticsYes(v: Container["logistics"]): boolean {
   if (typeof v === "boolean") return v;
   return ["yes", "y", "true", "1"].includes(v.toLowerCase());
+}
+
+function getContainerTeu(container: Container): number {
+  const teu = container.teu_size ?? container.size_teu;
+  return Number.isFinite(teu) ? Number(teu) : 1;
 }
 
 export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
@@ -237,7 +243,7 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
     const exportData = filteredContainers.map((c) => ({
       container_number: c.container_number,
       depot: c.depots?.name || "Unknown",
-      teu_size: c.teu_size,
+      teu_size: getContainerTeu(c),
       activity: getDisplayActivity(c),
       logistics: isLogisticsYes(c.logistics) ? "Yes" : "No",
       status: getDisplayStatus(c),
@@ -254,7 +260,7 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
     const exportData = filteredContainers.map((c) => ({
       container_number: c.container_number,
       depot: c.depots?.name || "Unknown",
-      teu_size: c.teu_size,
+      teu_size: getContainerTeu(c),
       activity: getDisplayActivity(c),
       logistics: isLogisticsYes(c.logistics) ? "Yes" : "No",
       status: getDisplayStatus(c),
@@ -438,7 +444,7 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
                   </div>
                   <div className="flex gap-2">
                     <Badge variant="outline" className="font-mono">
-                      {container.teu_size} TEU
+                      {`TEU: ${getContainerTeu(container)}`}
                     </Badge>
                   </div>
                 </div>
