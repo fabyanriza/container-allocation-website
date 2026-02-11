@@ -43,11 +43,11 @@ interface Container {
   id: number;
   container_number: string;
   teu_size: number;
-  activity: string;
-  logistics: boolean;
+  activity?: string | null;
+  logistics: boolean | string;
   depot_id: number;
   status: string;
-  discharge_status?: string;
+  discharge_status?: string | null;
   grade?: string;
   created_at: string;
   depots?: {
@@ -60,19 +60,36 @@ interface Depot {
   name: string;
 }
 
-function getContainerGradeFromState(state?: string): "full" | "empty" | undefined {
-  if (!state) return undefined;
-  const normalized = state.trim().toLowerCase();
-  if (!normalized) return undefined;
-  if (normalized.startsWith("f")) return "full";
-  if (normalized.startsWith("m")) return "empty";
+function normalizeContainerGrade(grade?: string): "A" | "B" | "C" | undefined {
+  if (!grade) return undefined;
+  const normalized = grade.trim().toUpperCase();
+  if (normalized === "A" || normalized === "B" || normalized === "C") {
+    return normalized;
+  }
   return undefined;
 }
 
-function getContainerGrade(container: Container): string {
-  const derived = getContainerGradeFromState(container.discharge_status);
-  if (derived) return derived;
-  return container.grade || "B";
+function getContainerGrade(container: Container): "A" | "B" | "C" | "-" {
+  const normalized = normalizeContainerGrade(container.grade);
+  return normalized || "-";
+}
+
+function getDisplayStatus(container: Container): string {
+  const raw = container.discharge_status?.trim().toLowerCase();
+  if (!raw) return "-";
+  if (raw.startsWith("f")) return "full";
+  if (raw.startsWith("m")) return "empty";
+  return "-";
+}
+
+function getDisplayActivity(container: Container): string {
+  const activity = container.activity?.trim();
+  return activity ? activity.replace(/_/g, " ") : "-";
+}
+
+function isLogisticsYes(v: Container["logistics"]): boolean {
+  if (typeof v === "boolean") return v;
+  return ["yes", "y", "true", "1"].includes(v.toLowerCase());
 }
 
 export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
@@ -170,12 +187,12 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
     // Filter by logistics
     if (selectedLogistics !== "all") {
       const isLogistics = selectedLogistics === "yes";
-      filtered = filtered.filter((c) => c.logistics === isLogistics);
+      filtered = filtered.filter((c) => isLogisticsYes(c.logistics) === isLogistics);
     }
 
     // Filter by status
     if (selectedStatus !== "all") {
-      filtered = filtered.filter((c) => c.status === selectedStatus);
+      filtered = filtered.filter((c) => getDisplayStatus(c) === selectedStatus);
     }
 
     // Filter by grade
@@ -221,9 +238,9 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
       container_number: c.container_number,
       depot: c.depots?.name || "Unknown",
       teu_size: c.teu_size,
-      activity: c.activity,
-      logistics: c.logistics ? "Yes" : "No",
-      status: c.status,
+      activity: getDisplayActivity(c),
+      logistics: isLogisticsYes(c.logistics) ? "Yes" : "No",
+      status: getDisplayStatus(c),
       container_grade: getContainerGrade(c),
       created_at: new Date(c.created_at).toLocaleString("id-ID"),
     }));
@@ -238,9 +255,9 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
       container_number: c.container_number,
       depot: c.depots?.name || "Unknown",
       teu_size: c.teu_size,
-      activity: c.activity,
-      logistics: c.logistics ? "Yes" : "No",
-      status: c.status,
+      activity: getDisplayActivity(c),
+      logistics: isLogisticsYes(c.logistics) ? "Yes" : "No",
+      status: getDisplayStatus(c),
       container_grade: getContainerGrade(c),
       created_at: new Date(c.created_at).toLocaleString("id-ID"),
     }));
@@ -349,9 +366,8 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="available">Available</SelectItem>
-              <SelectItem value="in_transit">In Transit</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="full">Full</SelectItem>
+              <SelectItem value="empty">Empty</SelectItem>
             </SelectContent>
           </Select>
 
@@ -362,8 +378,6 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Grades</SelectItem>
-              <SelectItem value="full">Full</SelectItem>
-              <SelectItem value="empty">Empty</SelectItem>
               <SelectItem value="A">Grade A (Premium)</SelectItem>
               <SelectItem value="B">Grade B (Standard)</SelectItem>
               <SelectItem value="C">Grade C (Regular)</SelectItem>
@@ -434,27 +448,27 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Activity:</span>
                     <span className="font-medium capitalize">
-                      {container.activity?.replace(/_/g, " ") || "N/A"}
+                      {getDisplayActivity(container)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Logistics:</span>
                     <Badge
-                      variant={container.logistics ? "default" : "secondary"}
+                      variant={isLogisticsYes(container.logistics) ? "default" : "secondary"}
                     >
-                      {container.logistics ? "Yes" : "No"}
+                      {isLogisticsYes(container.logistics) ? "Yes" : "No"}
                     </Badge>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Status:</span>
                     <Badge
                       variant={
-                        container.status === "available"
+                        getDisplayStatus(container) === "full"
                           ? "default"
                           : "secondary"
                       }
                     >
-                      {container.status}
+                      {getDisplayStatus(container)}
                     </Badge>
                   </div>
                   <div className="flex justify-between">
@@ -464,21 +478,17 @@ export default function ContainerList({ refreshKey }: { refreshKey?: number }) {
                       return (
                         <Badge
                           variant={
-                            currentGrade === "full"
+                            currentGrade === "A"
                               ? "default"
-                              : currentGrade === "empty"
+                              : currentGrade === "B"
+                                ? "outline"
+                                : currentGrade === "C"
                                 ? "secondary"
-                                : currentGrade === "A"
-                                  ? "default"
-                                  : currentGrade === "B"
-                                    ? "outline"
-                                    : "secondary"
+                                : "secondary"
                           }
                           className="capitalize"
                         >
-                          {currentGrade === "A" || currentGrade === "B" || currentGrade === "C"
-                            ? `Grade ${currentGrade}`
-                            : currentGrade}
+                          {currentGrade === "-" ? "-" : `Grade ${currentGrade}`}
                         </Badge>
                       );
                     })()}

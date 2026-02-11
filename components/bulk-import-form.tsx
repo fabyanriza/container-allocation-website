@@ -22,7 +22,7 @@ interface ContainerData {
   logistics: string;
   size_teu: number;
   state?: string;
-  container_grade?: "full" | "empty";
+  container_grade?: "A" | "B" | "C";
   prevcy?: string; // Voyage/previous code
   bookno?: string; // Booking number
   cont_type?: string; // Container type (20 DC, 40 DC, etc)
@@ -54,12 +54,12 @@ function toNumber(v: unknown, fallback = 1) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function getContainerGradeFromState(state?: string): "full" | "empty" | undefined {
-  if (!state) return undefined;
-  const normalized = state.trim().toLowerCase();
-  if (!normalized) return undefined;
-  if (normalized.startsWith("f")) return "full";
-  if (normalized.startsWith("m")) return "empty";
+function normalizeContainerGrade(grade?: string): "A" | "B" | "C" | undefined {
+  if (!grade) return undefined;
+  const normalized = grade.trim().toUpperCase();
+  if (normalized === "A" || normalized === "B" || normalized === "C") {
+    return normalized;
+  }
   return undefined;
 }
 
@@ -215,7 +215,8 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
             contTypeIdx !== -1 ? values[contTypeIdx] : undefined;
           const grade = gradeIdx !== -1 ? values[gradeIdx] : undefined;
           const state = stateIdx !== -1 ? values[stateIdx] : undefined;
-          const container_grade = getContainerGradeFromState(state);
+          const normalizedGrade = normalizeContainerGrade(grade);
+          const container_grade = normalizedGrade;
           const depot_id =
             depotIdIdx !== -1 && values[depotIdIdx]
               ? Number.parseInt(values[depotIdIdx], 10)
@@ -232,7 +233,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               cont_type: cont_type || undefined,
               state: state || undefined,
               container_grade,
-              grade: grade || undefined,
+              grade: normalizedGrade,
               depot_id: Number.isFinite(depot_id) ? depot_id : undefined,
             });
           }
@@ -279,7 +280,8 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               String(
                 normalized["state"] ?? normalized["discharge_status"] ?? "",
               ).trim() || undefined;
-            const container_grade = getContainerGradeFromState(state);
+            const normalizedGrade = normalizeContainerGrade(grade);
+            const container_grade = normalizedGrade;
 
             // optional depot_id column
             const depot_id_raw = normalized["depot_id"];
@@ -302,7 +304,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
               cont_type,
               state,
               container_grade,
-              grade,
+              grade: normalizedGrade,
               depot_id,
             };
           })
