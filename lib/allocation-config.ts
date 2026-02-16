@@ -90,7 +90,6 @@ export function getDepotGradePreferences(depotName: string): string[] {
 }
 
 /**
- * Helper function to check if a depot accepts a specific grade
  * @param depotName - The depot name
  * @param grade - The container grade to check
  * @returns true if the depot accepts this grade (or grade is not specified)
