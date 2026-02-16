@@ -4,16 +4,16 @@ import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { createClient } from "@/lib/supabase/client";
 
 interface Depot {
   id: number;
   name: string;
   capacity_teu: number;
   location: string;
+  used_teu?: number;
 }
 
 interface ContainerData {
@@ -75,19 +75,26 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [postImportProjection, setPostImportProjection] = useState<
+    {
+      depot_id: number;
+      depot_name: string;
+      projected_used_teu: number;
+      projected_capacity_teu: number;
+      projected_percentage: number;
+    }[]
+  >([]);
 
   // === Fetch depots for dropdown once ===
   useEffect(() => {
     (async () => {
       try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from("depots")
-          .select("id,name,capacity_teu,location")
-          .order("name");
-
-        if (error) throw error;
-        setDepots((data as Depot[]) ?? []);
+        const response = await fetch("/api/depots");
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to fetch depots");
+        }
+        setDepots((result as Depot[]) ?? []);
       } catch (e) {
         console.error(e);
         setError("Failed to load depots list.");
@@ -100,6 +107,36 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
     for (const d of depots) m.set(d.id, d.name);
     return m;
   }, [depots]);
+
+  const projectedCapacities = useMemo(() => {
+    const incomingByDepot = new Map<number, number>();
+    for (const row of preview) {
+      if (!row.depot_id) continue;
+      const teu = Number.isFinite(row.size_teu) ? row.size_teu : 1;
+      incomingByDepot.set(row.depot_id, (incomingByDepot.get(row.depot_id) ?? 0) + teu);
+    }
+
+    return depots
+      .map((depot) => {
+        const currentUsed = Number.isFinite(depot.used_teu) ? Number(depot.used_teu) : 0;
+        const incoming = incomingByDepot.get(depot.id) ?? 0;
+        const projectedUsed = currentUsed + incoming;
+        const capacity = depot.capacity_teu || 0;
+        const projectedPercentage = capacity > 0 ? (projectedUsed / capacity) * 100 : 0;
+
+        return {
+          depot_id: depot.id,
+          depot_name: depot.name,
+          current_used_teu: currentUsed,
+          incoming_teu: incoming,
+          projected_used_teu: projectedUsed,
+          projected_capacity_teu: capacity,
+          projected_percentage: projectedPercentage,
+        };
+      })
+      .filter((d) => d.incoming_teu > 0)
+      .sort((a, b) => b.projected_percentage - a.projected_percentage);
+  }, [depots, preview]);
 
   // === Recommendation call ===
   async function applyRecommendations(containers: ContainerData[]) {
@@ -149,6 +186,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
     setFile(uploadedFile);
     setError(null);
     setSuccess(null);
+    setPostImportProjection([]);
     setParsing(true);
 
     try {
@@ -375,6 +413,15 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
         throw new Error(result.error || "Import failed");
       }
 
+      setPostImportProjection(
+        projectedCapacities.map((item) => ({
+          depot_id: item.depot_id,
+          depot_name: item.depot_name,
+          projected_used_teu: item.projected_used_teu,
+          projected_capacity_teu: item.projected_capacity_teu,
+          projected_percentage: item.projected_percentage,
+        })),
+      );
       setSuccess(
         `Successfully imported ${result.imported} containers (${result.updated} updated, ${result.created} created)`,
       );
@@ -575,6 +622,23 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                 </p>
               )}
 
+              {projectedCapacities.length > 0 && (
+                <Alert className="mt-4 border-blue-200 bg-blue-50 text-blue-900">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Proyeksi kapasitas depo setelah konfirmasi alokasi</AlertTitle>
+                  <AlertDescription>
+                    <div className="space-y-1">
+                      {projectedCapacities.map((item) => (
+                        <p key={item.depot_id}>
+                          {item.depot_name}: {item.projected_used_teu.toFixed(1)} / {item.projected_capacity_teu} TEU (
+                          {item.projected_percentage.toFixed(1)}%)
+                        </p>
+                      ))}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="flex gap-2 mt-4">
                 <Button
                   onClick={handleImport}
@@ -592,6 +656,23 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
                 </Button>
               </div>
             </div>
+          )}
+
+          {!loading && success && postImportProjection.length > 0 && (
+            <Alert className="border-green-200 bg-green-50 text-green-900">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertTitle>Kapasitas depo setelah alokasi dikonfirmasi</AlertTitle>
+              <AlertDescription>
+                <div className="space-y-1">
+                  {postImportProjection.map((item) => (
+                    <p key={item.depot_id}>
+                      {item.depot_name}: {item.projected_used_teu.toFixed(1)} / {item.projected_capacity_teu} TEU (
+                      {item.projected_percentage.toFixed(1)}%)
+                    </p>
+                  ))}
+                </div>
+              </AlertDescription>
+            </Alert>
           )}
         </div>
       </Card>
