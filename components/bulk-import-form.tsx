@@ -422,6 +422,8 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          import_filename: file?.name ?? null,
+          total_incoming_teu: totalIncomingTeu,
           containers: preview.map(
             ({ recommended_depot_id, recommendation_reason, ...rest }) => rest,
           ),
@@ -706,17 +708,17 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Konfirmasi Alokasi Bongkaran</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <div>
+              <p>
                 Apakah Anda yakin ingin melakukan alokasi dan import{" "}
                 <span className="font-semibold">{preview.length}</span> container?
-              </div>
-              <div className="text-xs text-muted-foreground">
+              </p>
+              <p className="text-xs text-muted-foreground">
                 Total incoming: {totalIncomingTeu.toFixed(1)} TEU
-              </div>
+              </p>
               {projectedCapacities.length > 0 && (
-                <div className="space-y-1 text-sm">
+                <div className="space-y-1 text-sm" role="list">
                   {projectedCapacities.map((item) => (
-                    <div key={item.depot_id}>
+                    <div key={item.depot_id} role="listitem">
                       {item.depot_name}: setelah import menjadi{" "}
                       <span className="font-semibold">
                         {item.projected_used_teu.toFixed(1)} /{" "}

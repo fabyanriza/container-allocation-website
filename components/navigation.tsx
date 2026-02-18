@@ -40,6 +40,7 @@ export default function Navigation() {
     { href: "/", label: "Dashboard" },
     { href: "/allocation", label: "Allocate" },
     { href: "/management", label: "Management" },
+    { href: "/import-history", label: "Import History" },
     { href: "/forecast", label: "Forecast" },
   ];
 
