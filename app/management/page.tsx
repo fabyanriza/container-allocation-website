@@ -75,10 +75,7 @@ export default function ManagementPage() {
 
         {/* Content */}
         {activeTab === "depots" && (
-          <DepotManagementList
-            key={`depots-${refreshKey}`}
-            onRefresh={handleRefresh}
-          />
+          <DepotManagementList onRefresh={handleRefresh} />
         )}
 
         {activeTab === "containers" && (
