@@ -5,6 +5,16 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -72,6 +82,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
   const [parsing, setParsing] = useState(false);
   const [recommending, setRecommending] = useState(false);
   const [showAllRows, setShowAllRows] = useState(false);
+  const [showImportConfirmDialog, setShowImportConfirmDialog] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -137,6 +148,16 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
       .filter((d) => d.incoming_teu > 0)
       .sort((a, b) => b.projected_percentage - a.projected_percentage);
   }, [depots, preview]);
+
+  const totalIncomingTeu = useMemo(
+    () =>
+      preview.reduce((sum, row) => {
+        if (!row.depot_id) return sum;
+        const teu = Number.isFinite(row.size_teu) ? row.size_teu : 1;
+        return sum + teu;
+      }, 0),
+    [preview],
+  );
 
   // === Recommendation call ===
   async function applyRecommendations(containers: ContainerData[]) {
@@ -641,7 +662,7 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
 
               <div className="flex gap-2 mt-4">
                 <Button
-                  onClick={handleImport}
+                  onClick={() => setShowImportConfirmDialog(true)}
                   disabled={loading || preview.length === 0}
                 >
                   {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -676,6 +697,53 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
           )}
         </div>
       </Card>
+
+      <AlertDialog
+        open={showImportConfirmDialog}
+        onOpenChange={setShowImportConfirmDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Konfirmasi Alokasi Bongkaran</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <div>
+                Apakah Anda yakin ingin melakukan alokasi dan import{" "}
+                <span className="font-semibold">{preview.length}</span> container?
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Total incoming: {totalIncomingTeu.toFixed(1)} TEU
+              </div>
+              {projectedCapacities.length > 0 && (
+                <div className="space-y-1 text-sm">
+                  {projectedCapacities.map((item) => (
+                    <div key={item.depot_id}>
+                      {item.depot_name}: setelah import menjadi{" "}
+                      <span className="font-semibold">
+                        {item.projected_used_teu.toFixed(1)} /{" "}
+                        {item.projected_capacity_teu} TEU
+                      </span>{" "}
+                      ({item.projected_percentage.toFixed(1)}%)
+                    </div>
+                  ))}
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                setShowImportConfirmDialog(false);
+                void handleImport();
+              }}
+              disabled={loading || preview.length === 0}
+            >
+              Ya, lanjut import
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
