@@ -707,28 +707,28 @@ export default function BulkImportForm({ onSuccess }: BulkImportFormProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Konfirmasi Alokasi Bongkaran</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
+            <AlertDialogDescription asChild>
+              <div className="text-muted-foreground text-sm space-y-2">
                 Apakah Anda yakin ingin melakukan alokasi dan import{" "}
                 <span className="font-semibold">{preview.length}</span> container?
-              </p>
-              <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                 Total incoming: {totalIncomingTeu.toFixed(1)} TEU
-              </p>
-              {projectedCapacities.length > 0 && (
-                <div className="space-y-1 text-sm" role="list">
-                  {projectedCapacities.map((item) => (
-                    <div key={item.depot_id} role="listitem">
-                      {item.depot_name}: setelah import menjadi{" "}
-                      <span className="font-semibold">
-                        {item.projected_used_teu.toFixed(1)} /{" "}
-                        {item.projected_capacity_teu} TEU
-                      </span>{" "}
-                      ({item.projected_percentage.toFixed(1)}%)
-                    </div>
-                  ))}
-                </div>
-              )}
+                </p>
+                {projectedCapacities.length > 0 && (
+                  <div className="space-y-1 text-sm" role="list">
+                    {projectedCapacities.map((item) => (
+                      <div key={item.depot_id} role="listitem">
+                        {item.depot_name}: setelah import menjadi{" "}
+                        <span className="font-semibold">
+                          {item.projected_used_teu.toFixed(1)} /{" "}
+                          {item.projected_capacity_teu} TEU
+                        </span>{" "}
+                        ({item.projected_percentage.toFixed(1)}%)
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
